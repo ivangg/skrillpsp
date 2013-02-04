@@ -15,8 +15,13 @@
         });
         
         {if $pconfig.redirect_url}
-        jQuery('#skrillpspiframe{$pconfig.pmethod}').html('<iframe src="{$pconfig.redirect_url}" frameborder="0" scrolling="no" ' +
-                                                          'style="width:350px; border: none; height: 270px;"></iframe>');
+            {if $pconfig.pmethod == 'CC'}
+                jQuery('#skrillpspiframe{$pconfig.pmethod}').html('<iframe src="{$pconfig.redirect_url}" frameborder="0" scrolling="no" ' +
+                                                                'style="width:350px; border: none; height: 270px;"></iframe>');
+            {else}
+                jQuery('#skrillpspiframe{$pconfig.pmethod}').html('<iframe src="{$pconfig.redirect_url}" frameborder="0" scrolling="no" ' +
+                                                                'style="width:600px; border: none; height: 620px;"></iframe>');
+            {/if}
         {else}
         jQuery('#skrillpspiframe{$pconfig.pmethod}').html('<iframe src="https://www.moneybookers.com/app/payment.pl?sid={$pconfig.sid}"' +
                                                           ' allowtransparency="true" frameborder="0" scrolling="no" style="width:100%; height:500px; border:none;"></iframe>');

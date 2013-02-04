@@ -18,9 +18,9 @@ if ($_POST['PAYMENT_CODE'] == SkrillPsp::payment_code_qc_e)
     if ($_POST['PROCESSING_RESULT'] == Skrillpsp::validation_result_ok_e &&
         $_POST['PROCESSING_STATUS_CODE'] == SkrillPsp::processing_status_code_ok_e &&
         $_POST['PROCESSING_REASON_CODE'] == SkrillPsp::processing_reason_code_ok_e)
-        { 
+        {
         $cart = new Cart((int)$cart_ids[0]);
-	if (!$cart->id)
+	/*if (!$cart->id)
 	    $errors = $skrillpsp->l('Your shopping cart is empty!') . '<br />';
 	elseif (Order::getOrderByCartId((int)($cart_ids[0])))
 	    $errors = $paypal->l('Your order has already been placed').'<br />';
@@ -28,8 +28,8 @@ if ($_POST['PAYMENT_CODE'] == SkrillPsp::payment_code_qc_e)
             $skrillpsp->validateOrder((int)$cart_ids[0], Configuration::get('PS_OS_PAYMENT'), (float)($_POST['PRESENTATION_AMOUNT']),
                     $skrillpsp->displayName, $skrillpsp->l('Skrill Transaction ID: ') . $_POST['IDENTIFICATION_TRANSACTIONID'],
                     array('transaction_id' => $_POST['IDENTIFICATION_TRANSACTIONID'],
-                    'payment_status' => $_POST['PROCESSING_RETURN']), null, false, $cart_ids[2]);
-        
+                    'payment_status' => $_POST['PROCESSING_RETURN']), null, false, $cart_ids[2]);*/
+
         echo 'https://' . $_SERVER['HTTP_HOST'] . _MODULE_DIR_ . 'skrillpsp/success.php';
         exit;
         }
@@ -41,13 +41,13 @@ elseif ($_POST['PAYMENT_CODE'] == SkrillPsp::payment_code_rg_e)
     if ($_POST['PROCESSING_RESULT'] == Skrillpsp::validation_result_ok_e &&
         $_POST['PROCESSING_STATUS_CODE'] == SkrillPsp::processing_status_code_ok_e &&
         $_POST['PROCESSING_REASON_CODE'] == SkrillPsp::processing_reason_code_ok_e)
-        { 
+        {
         $skrillpsp->preauthorizeRequest($_POST);
-        echo 'https://' . $_SERVER['HTTP_HOST'] . _MODULE_DIR_ . 'skrillpsp/success.php';
-        exit;
+        $skrillpsp->cookie->ScartID = (int)$cart_ids[0];
+        die('https://' . $_SERVER['HTTP_HOST'] . _MODULE_DIR_ . 'skrillpsp/success.php?cart_id=' . $cart_ids[0]);
         }
-    
-    echo 'https://' . $_SERVER['HTTP_HOST'] . _MODULE_DIR_ . 'skrillpsp/error.php';
+
+    die('https://' . $_SERVER['HTTP_HOST'] . _MODULE_DIR_ . 'skrillpsp/error.php');
     }
 
-echo 'https://' . $_SERVER['HTTP_HOST'] . _MODULE_DIR_ . 'skrillpsp/error.php';
+echo 'https://' . $_SERVER['HTTP_HOST'] . _MODULE_DIR_ . 'skrillpsp/success.php';

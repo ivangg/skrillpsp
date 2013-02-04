@@ -83,6 +83,7 @@ class SkrillPsp extends PaymentModule
             
         if (!Db::getInstance()->Execute('CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'skrillpsp_trns` (
                                         `order_id`  int(10) unsigned NOT NULL,
+                                        `cart_id`   int(10) unsigned NOT NULL,
                                         `trn_id`    varchar(128)    NOT NULL,
                                         `unique_id` varchar(128)    NOT NULL,
                                         `payment_code` char(5)      NOT NULL,
@@ -90,7 +91,7 @@ class SkrillPsp extends PaymentModule
                                         `currency`  char(3)         NOT NULL,
                                         `processing_code` varchar(11) NOT NULL,
                                         
-                                        PRIMARY KEY (`id_order`)
+                                        PRIMARY KEY (`order_id`)
                                         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8'))
 	    return false;
 
@@ -224,7 +225,9 @@ class SkrillPsp extends PaymentModule
 
             $response = $this->_execPOSTRequest($requestdata, $secure_url);
 
-            if (($response['PROCESSING.RESULT'] == self::validation_result_ok_e &&
+            if ((array_key_exists('PROCESSING.RESULT', $response) &&
+                $response['PROCESSING.RESULT'] == self::validation_result_ok_e &&
+                array_key_exists('PROCESSING.CODE', $response) &&
                 $response['PROCESSING.CODE'] == self::va_transaction_pending_e)
                 ||
                 (isset($response['FRONTEND.REDIRECT_URL']) &&
@@ -244,10 +247,41 @@ class SkrillPsp extends PaymentModule
         
         return $this->context->smarty->fetch(_PS_MODULE_DIR_ . self::$views_dir . '/front/skrillpsp.tpl');
         }
+        
+    public function hookPaymentReturn ()
+	{
+	if (!$this->active)
+	    return;
+	return $this->context->smarty->fetch(_PS_MODULE_DIR_ . self::$views_dir . '/front/confirmation.tpl');
+	}
 
     public function getStatusUrl ()
         {
-        return 'http://' . $_SERVER['HTTP_HOST'] . _MODULE_DIR_ . $this->name . '/validation.php';    
+        return 'https://' . $_SERVER['HTTP_HOST'] . _MODULE_DIR_ . $this->name . '/validation.php';    
+        }
+        
+    public function getSuccessUrl ($cart_id = 0)
+        {
+        $lcart_id = $cart_id ? $cart_id : $this->context->cookie->ScartID;
+        
+        $trndata = Db::getInstance()->getRow('
+                SELECT `order_id`, `trn_id`
+                FROM `' . _DB_PREFIX_ . 'skrillpsp_trns`
+                WHERE `cart_id` = ' . (int)$lcart_id);
+        $key = split("_", $trndata['trn_id']);
+        
+        $logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/datadump.log', "a+");
+        fprintf($logh, "%s\n\n",
+                'https://' . $_SERVER['HTTP_HOST'] . Context::getContext()->shop->getBaseURI() .
+                'index.php?controller=order-confirmation&id_cart=' .
+                $lcart_id . '&id_module=' . $this->id . '&id_order=' . $trndata['order_id'] .
+                '&key=' . $key[2]);
+        fclose($logh);
+
+        return  'https://' . $_SERVER['HTTP_HOST'] . Context::getContext()->shop->getBaseURI() .
+                'index.php?controller=order-confirmation&id_cart=' .
+                $lcart_id . '&id_module=' . $this->id . '&id_order=' . $trndata['order_id'] .
+                '&key=' . $key[2];
         }
 
     public function preauthorizeRequest ($data)
@@ -330,34 +364,52 @@ class SkrillPsp extends PaymentModule
         
         $response = $this->_execXMLRequest($xml, $secure_url);
         $parsed_response = $this->_parseXMLResponse($response);
+        $logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/datadump.log', "a+");
+        fprintf($logh, "%s\n\n\n", var_export($parsed_response, true));
         
-        $cart_ids = split("_", $parsed_response['TRANSACTIONID']);
-        $this->validateOrder((int)$cart_ids[0], Configuration::get('PS_OS_PAYMENT'), (float)($parsed_response['AMOUNT']),
-                    $this->displayName, $this->l('Skrill Transaction ID: ') . $parsed_response['TRANSACTIONID'],
-                    array('transaction_id' => $parsed_response['TRANSACTIONID'],
-                    'payment_status' => $parsed_response['RETURN']), null, false, $cart_ids[2]);
-        $parsed_response['ORDER_ID'] = (int)$cart_ids[0];
-        $this->saveTransaction($parsed_response);
+        $codes = split("\.", $parsed_response['PROCESSING_CODE']);
+        fprintf($logh, "%s\n\n\n", var_export($codes, true));
+        
+        fclose($logh);
+        
+        if ($codes[2] == '90' &&
+            $codes[3] == '00')
+            {
+            $cart_ids = split("_", $parsed_response['TRANSACTIONID']);
+            if (empty(Context::getContext()->link))
+                Context::getContext()->link = new Link();
+            $this->validateOrder((int)$cart_ids[0], Configuration::get('PS_OS_PAYMENT'), (float)($parsed_response['AMOUNT']),
+                        $this->displayName, $this->l('Skrill Transaction ID: ') . $parsed_response['TRANSACTIONID'],
+                        array('transaction_id' => $parsed_response['TRANSACTIONID'],
+                        'payment_status' => $parsed_response['RETURN']), null, false, $cart_ids[2]);
+            $parsed_response['ORDER_ID'] = (int)$this->currentOrder;
+            $parsed_response['CART_ID'] = (int)$cart_ids[0];
+            $this->saveTransaction($parsed_response);
+            
+            return true;
+            }
+            
+        return false;
         }
-        
+
     public function saveTransaction ($data)
         {
-        Db::getInstance()->Execute('
-			INSERT INTO `' . _DB_PREFIX_ . 'skrillpsp_trns` (`order_id`,
+        Db::getInstance()->Execute('INSERT INTO `' . _DB_PREFIX_ . 'skrillpsp_trns` (`order_id`,
                                                                         `trn_id`,
                                                                         `unique_id`,
                                                                         `payment_code`,
                                                                         `amount`,
                                                                         `currency`,
-                                                                        `processing_code`) 
+                                                                        `processing_code`,
+                                                                        `cart_id`) 
 			VALUES(' . $data['ORDER_ID'] . ',
                                 \'' . $data['TRANSACTIONID'] . '\',
                                 \'' . $data['UNIQUEID'] . '\',
                                 \'' . $data['PAYMENT_CODE'] . '\',
-                                ' . (float)$data['AMOUNT']) . ',
+                                ' . (float)$data['AMOUNT'] . ',
                                 \'' . $data['CURRENCY'] . '\',
-                                \'' . $data['PROCESSING_CODE'] . '\'
-                        )';
+                                \'' . $data['PROCESSING_CODE'] . '\',
+                                ' . $data['CART_ID'] . ')');
 
 	return Db::getInstance()->Insert_ID();
         }
@@ -516,25 +568,28 @@ class SkrillPsp extends PaymentModule
         $xml_parser = xml_parser_create();
         $nodes = $indexes = array();
         xml_parse_into_struct($xml_parser, $xml, $nodes, $indexes);
-        
+
         $result = array();
         foreach ($indexes as $nodename => $nodepos)
             {
             if ($nodename == 'UNIQUEID' ||
                 $nodename == 'TRANSACTIONID' ||
-                $nodename == 'PROCESSING CODE' ||
                 $nodename == 'AMOUNT' ||
                 $nodename == 'CURRENCY' ||
                 $nodename == 'RESULT' ||
-                $nodename == 'RETURN' ||
-                $nodename == 'PAYMENT CODE')
+                $nodename == 'RETURN')
                 {
                 $result[preg_replace('/ /', '_', $nodename)] = $nodes[$nodepos[0]]['value'];
+                }
+            elseif ($nodename == 'PAYMENT' ||
+                    $nodename == 'PROCESSING')
+                {
+                $result[$nodename . '_CODE'] = $nodes[$nodepos[0]]['attributes']['CODE'];
                 }
             }
         xml_parser_free($xml_parser);
 
-        return result;
+        return $result;
         }
     
     private function _saveConfiguration ()
