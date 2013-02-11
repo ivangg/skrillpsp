@@ -11,7 +11,8 @@ class SkrillPsp extends PaymentModule
                                     'wlt'   => 'Skrill Digital Wallet',
                                     'obt'   => 'Online Bank Transfer',
                                     'idl'   => 'iDEAL',
-                                    'did'   => 'Lastschrift (ELV)');
+                                    'did'   => 'Lastschrift (ELV)',
+                                    'jcb'   => 'Credit/debit card JCB');
 
     const validation_result_ok_e    = 'ACK';
     const validation_result_error_e = 'NOK';
@@ -24,7 +25,11 @@ class SkrillPsp extends PaymentModule
     
     const processing_status_code_ok_e   = '90';
     const processing_reason_code_ok_e   = '00';
+    const waiting_status_code_ok_e      = '80';
+    const waiting_reason_code_ok_e      = '00';
     
+    private $_redirecturl = '';
+    private $_redirectparams = array();
     
     private $_configErrors;
     private $_urls;
@@ -90,6 +95,7 @@ class SkrillPsp extends PaymentModule
                                         `amount`    decimal         NOT NULL,
                                         `currency`  char(3)         NOT NULL,
                                         `processing_code` varchar(11) NOT NULL,
+                                        `auxdata`   blob            DEFAULT NULL,
                                         
                                         PRIMARY KEY (`order_id`)
                                         ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8'))
@@ -206,6 +212,11 @@ class SkrillPsp extends PaymentModule
                     $requestdata['FRONTEND.CSS_PATH'] = 'https://' . $_SERVER['HTTP_HOST'] .
                                                 _MODULE_DIR_ . $this->name . '/css/skrillpsp_remote.css';
                     break;
+                case 'JCB' :
+                    $requestdata['NAME.TITLE'] = '';
+                    $requestdata['NAME.COMPANY'] = '';
+                    $requestdata['NAME.GIVEN'] = '';
+                    $requestdata['NAME.FAMILY'] = '';
                 case 'WLT' :
                 case 'OBT' :
                 case 'IDL' :
@@ -220,6 +231,10 @@ class SkrillPsp extends PaymentModule
                     $requestdata['FRONTEND.PM.1.ENABLED'] = 'true';
                     $requestdata['FRONTEND.PM.1.METHOD'] = 'VA';
                     $requestdata['PRESENTATION.USAGE'] = '';
+                    $requestdata['FRONTEND.JSCRIPT_PATH'] = 'https://' . $_SERVER['HTTP_HOST'] .
+                                                _MODULE_DIR_ . $this->name . '/js/skrillpsp_va.js';
+                    $requestdata['FRONTEND.CSS_PATH'] = 'https://' . $_SERVER['HTTP_HOST'] .
+                                                _MODULE_DIR_ . $this->name . '/css/skrillpsp_va.css';
                     break;
                 }
 
@@ -252,6 +267,17 @@ class SkrillPsp extends PaymentModule
 	{
 	if (!$this->active)
 	    return;
+	
+	$lcart_id = $_GET['id_cart'] ? $_GET['id_cart'] : $this->context->cookie->ScartID;
+        
+        $trndata = Db::getInstance()->getRow('
+                SELECT `order_id`, `trn_id`
+                FROM `' . _DB_PREFIX_ . 'skrillpsp_trns`
+                WHERE `cart_id` = ' . (int)$lcart_id);
+        $key = split("_", $trndata['trn_id']);
+        
+	$this->context->smarty->assign('order_id', $trndata['order_id']);
+	
 	return $this->context->smarty->fetch(_PS_MODULE_DIR_ . self::$views_dir . '/front/confirmation.tpl');
 	}
 
@@ -269,19 +295,45 @@ class SkrillPsp extends PaymentModule
                 FROM `' . _DB_PREFIX_ . 'skrillpsp_trns`
                 WHERE `cart_id` = ' . (int)$lcart_id);
         $key = split("_", $trndata['trn_id']);
-        
-        $logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/datadump.log', "a+");
-        fprintf($logh, "%s\n\n",
-                'https://' . $_SERVER['HTTP_HOST'] . Context::getContext()->shop->getBaseURI() .
-                'index.php?controller=order-confirmation&id_cart=' .
-                $lcart_id . '&id_module=' . $this->id . '&id_order=' . $trndata['order_id'] .
-                '&key=' . $key[2]);
-        fclose($logh);
 
         return  'https://' . $_SERVER['HTTP_HOST'] . Context::getContext()->shop->getBaseURI() .
                 'index.php?controller=order-confirmation&id_cart=' .
                 $lcart_id . '&id_module=' . $this->id . '&id_order=' . $trndata['order_id'] .
                 '&key=' . $key[2];
+        }
+        
+    public function getErrorUrl ()
+        {
+        return  'https://' . $_SERVER['HTTP_HOST'] . Context::getContext()->shop->getBaseURI() .
+                'index.php?controller=order&step=3' ;
+        }
+
+    public function getRedirectUrl ()
+        {
+        return $this->_redirecturl;
+        }
+        
+    public function getRedirectParams ()
+        {
+        return $this->_redirectparams;
+        }
+      
+    public function save3DSRedirectdata ($auxdata, $cart_id)
+        {
+        Db::getInstance()->Execute('UPDATE `' . _DB_PREFIX_ . 'skrillpsp_trns` SET `auxdata`= \'' .
+                                   $auxdata . '\' WHERE cart_id=' . (int)$cart_id);
+	}
+
+    public function fetch3DSRedirectdata ($cart_id)
+        {
+        $auxdata = Db::getInstance()->getRow('
+                SELECT `auxdata`
+                FROM `' . _DB_PREFIX_ . 'skrillpsp_trns`
+                WHERE `cart_id` = ' . (int)$cart_id);
+
+        $data3ds = unserialize($auxdata);
+        $this->_redirecturl = $data3ds['redirecturl'];
+        $this->_redirectparams = $data3ds['redirectparams'];
         }
 
     public function preauthorizeRequest ($data)
@@ -372,8 +424,8 @@ class SkrillPsp extends PaymentModule
         
         fclose($logh);
         
-        if ($codes[2] == '90' &&
-            $codes[3] == '00')
+        if ($codes[2] == self::processing_status_code_ok_e &&
+            $codes[3] == self::processing_reason_code_ok_e)
             {
             $cart_ids = split("_", $parsed_response['TRANSACTIONID']);
             if (empty(Context::getContext()->link))
@@ -382,6 +434,60 @@ class SkrillPsp extends PaymentModule
                         $this->displayName, $this->l('Skrill Transaction ID: ') . $parsed_response['TRANSACTIONID'],
                         array('transaction_id' => $parsed_response['TRANSACTIONID'],
                         'payment_status' => $parsed_response['RETURN']), null, false, $cart_ids[2]);
+            $parsed_response['ORDER_ID'] = (int)$this->currentOrder;
+            $parsed_response['CART_ID'] = (int)$cart_ids[0];
+            $this->saveTransaction($parsed_response);
+            
+            return true;
+            }
+        elseif ($codes[2] == self::waiting_status_code_ok_e &&
+                $codes[3] == self::waiting_reason_code_ok_e)
+            {
+            $parsed_response_3ds = $this->_process3DSResponse($response);
+            $logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/datadump.log', "a+");
+            fprintf($logh, "%s\n\n\n", var_export($parsed_response_3ds, true));
+            fclose($logh);
+            
+            $this->_redirecturl = $parsed_response_3ds['REDIRECT'];
+            $this->_redirectparams = $parsed_response_3ds['PARAMETER'];
+            /*$params3ds = '';
+            foreach ($parsed_response_3ds['PARAMETER'] as $key => $val)
+                $params3ds .= "$key=$val" . '&';
+            $params3ds = substr($params3ds, 0, -1);
+            $this->_redirecturl = $parsed_response_3ds['REDIRECT'] . "?$params3ds";*/
+            
+            $logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/datadump.log', "a+");
+            fprintf($logh, "%s\n\n\n", var_export($this->_redirecturl, true));
+            fclose($logh);
+            
+            return true;
+            }
+            
+        return false;
+        }
+
+    public function saveVADBTransaction ($data)
+        {
+        $fields = array('IDENTIFICATION_TRANSACTIONID' => 'TRANSACTIONID',
+                        'PRESENTATION_AMOUNT' => 'AMOUNT',
+                        'PRESENTATION_CURRENCY' => 'CURRENCY',
+                        'IDENTIFICATION_UNIQUEID' => 'IDENTIFICATION_UNIQUEID');
+        $codes = split("\.", $data['PROCESSING_CODE']);
+        
+        if ($codes[2] == '90' &&
+            $codes[3] == '00')
+            {
+            $cart_ids = split("_", $data['IDENTIFICATION_TRANSACTIONID']);
+            if (empty(Context::getContext()->link))
+                Context::getContext()->link = new Link();
+            $this->validateOrder((int)$cart_ids[0], Configuration::get('PS_OS_PAYMENT'), (float)($data['PRESENTATION_AMOUNT']),
+                        $this->displayName, $this->l('Skrill Transaction ID: ') . $data['IDENTIFICATION_TRANSACTIONID'],
+                        array('transaction_id' => $data['IDENTIFICATION_TRANSACTIONID'],
+                        'payment_status' => $data['PROCESSING_RETURN']), null, false, $cart_ids[2]);
+            
+            $parsed_response = array();
+            foreach ($data as $key => $val)
+                $parsed_response[$fields[$key] ? $fields[$key] : $key] = $val;
             $parsed_response['ORDER_ID'] = (int)$this->currentOrder;
             $parsed_response['CART_ID'] = (int)$cart_ids[0];
             $this->saveTransaction($parsed_response);
@@ -592,6 +698,60 @@ class SkrillPsp extends PaymentModule
         return $result;
         }
     
+     private function _process3DSResponse ($response)
+        {
+        $xml_parser = xml_parser_create();
+        $nodes = $indexes = array();
+        xml_parse_into_struct($xml_parser, $response, $nodes, $indexes);
+
+        $result = array();
+        foreach ($indexes as $nodename => $nodepos)
+            {
+            $logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/datadump.log', "a+");
+            fprintf($logh, "%s %s\n\n\n", $nodename, var_export($nodepos, true));
+            //fprintf($logh, "%s\n\n\n", var_export($nodes, true));
+            fclose($logh);
+            if ($nodename == 'UNIQUEID' ||
+                $nodename == 'TRANSACTIONID' ||
+                $nodename == 'AMOUNT' ||
+                $nodename == 'CURRENCY' ||
+                $nodename == 'RESULT' ||
+                $nodename == 'RETURN')
+                {
+                $result[$nodename] = $nodes[$nodepos[0]]['value'];
+                }
+            elseif ($nodename == 'REDIRECT')
+                {
+                $result[$nodename] = $nodes[$nodepos[0]]['attributes']['URL'];
+                }
+            elseif ($nodename == 'PARAMETER')
+                {
+                $logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/datadump.log', "a+");
+                $result[$nodename] = array();
+                $sz = count($nodepos);
+                for ($i = 0; $i < $sz; $i ++)
+                    {
+                    fprintf($logh, "%s %s\n\n\n", $nodes[$nodepos[$i]]['attributes']['NAME'], $nodes[$nodepos[$i]]['value']);
+                    $result[$nodename][$nodes[$nodepos[$i]]['attributes']['NAME']] = $nodes[$nodepos[$i]]['value'];
+                    }
+                fclose($logh);
+                }
+            elseif ($nodename == 'PAYMENT' ||
+                    $nodename == 'PROCESSING')
+                {
+                $result[$nodename . '_CODE'] = $nodes[$nodepos[0]]['attributes']['CODE'];
+                }
+            }
+        xml_parser_free($xml_parser);
+
+        //$logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/datadump.log', "a+");
+        //fprintf($logh, "%s\n\n\n", var_export($indexes, true));
+        //fprintf($logh, "%s\n\n\n", var_export($nodes, true));
+        //fclose($logh);
+        
+        return $result;
+        }
+
     private function _saveConfiguration ()
 	{
         $fieldslabels = array("channel" => "Channel",

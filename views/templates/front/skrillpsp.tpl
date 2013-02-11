@@ -19,8 +19,7 @@
                 jQuery('#skrillpspiframe{$pconfig.pmethod}').html('<iframe src="{$pconfig.redirect_url}" frameborder="0" scrolling="no" ' +
                                                                 'style="width:350px; border: none; height: 270px;"></iframe>');
             {else}
-                jQuery('#skrillpspiframe{$pconfig.pmethod}').html('<iframe src="{$pconfig.redirect_url}" frameborder="0" scrolling="no" ' +
-                                                                'style="width:600px; border: none; height: 620px;"></iframe>');
+        	window.top.location = '{$pconfig.redirect_url}';
             {/if}
         {else}
         jQuery('#skrillpspiframe{$pconfig.pmethod}').html('<iframe src="https://www.moneybookers.com/app/payment.pl?sid={$pconfig.sid}"' +

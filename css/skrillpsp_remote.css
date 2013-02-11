@@ -39,6 +39,7 @@ html, body { background: none; }
  #frontendForm input[type="checkbox"],
  #frontendForm select {
     font-family: "Helvetica Neue", Helvetica, sans-serif;
+    height: 26px !important;
     font-size: 15px;
     color: #444;
     margin-top: 2px;
@@ -70,6 +71,7 @@ html, body { background: none; }
     background:#E7D3E0;
     background:-webkit-gradient(linear, 0% 0%, 0% 100%, from(#E7D3E0), to(#EEE));
     background:-moz-linear-gradient(0% 90% 90deg, #EEE, #E7D3E0);
+    background:gradient(0% 90% 90deg, #EEE, #E7D3E0);
 
     -webkit-transition: all .4s ease-in-out;
     -moz-transition: all .4s ease-in-out;
