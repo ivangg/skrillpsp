@@ -8,4 +8,4 @@ $skrillpsp = new SkrillPsp();
 
 $mycart_id = $_GET['cart_id'];
 $mysmarty->assign('redirect_url', $skrillpsp->getSuccessUrl($mycart_id));
-echo $mysmarty->fetch(_PS_MODULE_DIR_ . '/skrillpsp/views/templates/front/success.tpl');
+echo $mysmarty->fetch(_PS_MODULE_DIR_ . 'skrillpsp/views/templates/front/success.tpl');

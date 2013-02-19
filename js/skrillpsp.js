@@ -18,3 +18,9 @@ function init ()
             element.style.display="none";
         }
     }
+    
+function initAfter ()
+    {
+    var btn = getElem('id', 'send', 0);
+    btn.value = "Place Order";
+    }

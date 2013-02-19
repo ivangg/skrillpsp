@@ -16,13 +16,13 @@
         
         {if $pconfig.redirect_url}
             {if $pconfig.pmethod == 'CC'}
-                jQuery('#skrillpspiframe{$pconfig.pmethod}').html('<iframe src="{$pconfig.redirect_url}" frameborder="0" scrolling="no" ' +
+                jQuery('#skrillpspiframe{$pconfig.pmethod}').html('<iframe id="skrillpsppaymentiframe{$pconfig.pmethod}" src="{$pconfig.redirect_url}" frameborder="0" scrolling="no" ' +
                                                                 'style="width:350px; border: none; height: 270px;"></iframe>');
             {else}
         	window.top.location = '{$pconfig.redirect_url}';
             {/if}
         {else}
-        jQuery('#skrillpspiframe{$pconfig.pmethod}').html('<iframe src="https://www.moneybookers.com/app/payment.pl?sid={$pconfig.sid}"' +
+        jQuery('#skrillpspiframe{$pconfig.pmethod}').html('<iframe id="skrillpsppaymentiframe{$pconfig.pmethod}" src="https://www.moneybookers.com/app/payment.pl?sid={$pconfig.sid}"' +
                                                           ' allowtransparency="true" frameborder="0" scrolling="no" style="width:100%; height:500px; border:none;"></iframe>');
         {/if}
         jQuery('#skrillpspiframe{$pconfig.pmethod}').show();

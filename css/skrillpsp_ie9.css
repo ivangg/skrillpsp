@@ -1,0 +1,63 @@
+#skrillmain label {
+    font-family: "Helvetica Neue", Helvetica, sans-serif;
+    text-decoration: none;
+    font-weight: normal !important;
+    font-size: 14px;
+    color: #862165;
+    float: left;
+    text-align: right;
+    margin: 5px;
+    width: 290px;
+    display: inline-block;
+}
+
+#skrillmain #skrillconfigchannel .transactionmodewrapper {
+    width: 500px;
+    vertical-align: text-top;
+    margin-top: 5px;
+    float: left;
+}
+
+#skrillmain .skrillpmethod {
+    width: 200px;
+    text-align: center;
+    margin-right: 10px;
+    margin-left: 60px;
+    float: left;
+}
+
+.ms-container .ms-selectable {
+    margin-left: -150px;
+}
+
+.skrillformfield #transactionmode,
+#skrillmain .skrillnumericselect {
+    padding:3px;
+    margin: 0;
+    /*border-radius:4px;*/
+    /*box-shadow:
+        0 3px 0 #ccc,
+        0 -1px #fff inset;*/
+    /*background: #f8f8f8;
+    color:#431032;
+    border:none;
+    outline:none;
+    display: inline-block;
+    appearance:none;
+    cursor:pointer;
+    font-size:14px !important;
+    float: right;
+    margin: -5px -10px 0px 10px;*/
+}
+
+.transactionmodewrapper {
+    position:relative;
+}
+
+.transactionmodewrapper:after {
+    content:'';
+}
+
+.transactionmodewrapper:before {
+    content:'';
+}

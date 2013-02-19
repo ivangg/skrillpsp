@@ -1,0 +1,31 @@
+
+#skrillmain .skrillhideshow {
+    width: 230px;
+    /*float: right; */
+    margin-top: 5px;
+    display: block;
+}
+
+#skrillmain .skrillpmethod {
+    width: 200px;
+    text-align: center;
+    margin-right: 10px;
+    margin-left: 60px;
+    float: left;
+}
+
+.ms-container .ms-selectable {
+    margin-left: -150px;
+}
+
+.skrillformfield #transactionmode,
+#skrillmain .skrillnumericselect {
+}
+
+.transactionmodewrapper:after {
+    content: '';
+}
+
+.transactionmodewrapper:before {
+    content: '';
+}

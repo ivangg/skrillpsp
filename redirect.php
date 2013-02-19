@@ -5,7 +5,8 @@ include(dirname(__FILE__) . '/skrillpsp.php');
 
 $cart_id = $_GET['cart_id'];
 $skrillpsp = new SkrillPsp();
+$mysmarty = Context::getContext()->smarty;
 $skrillpsp->fetch3DSRedirectdata($cart_id);
-$skrillpsp->context->smarty->assign(array('redirecturl' => $skrillpsp->getRedirectUrl(),
+$mysmarty->assign(array('redirecturl' => $skrillpsp->getRedirectUrl(),
                                         'redirectparams' => $skrillpsp->getRedirectParams()));
-echo $skrillpsps->context->smarty->fetch(_PS_MODULE_DIR_ . '/skrillpsp/views/templates/front/redirect.tpl');
+echo $mysmarty->fetch(_PS_MODULE_DIR_ . 'skrillpsp/views/templates/front/redirect3ds.tpl');

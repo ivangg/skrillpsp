@@ -1,0 +1,81 @@
+#skrillmain .transactionmodewrapper {
+    width: 400px;
+    vertical-align: text-top;
+    margin-top: 5px;
+}
+
+#skrillmain #skrillconfigchannel .transactionmodewrapper {
+    width: 320px;
+    vertical-align: text-top;
+    margin-top: 5px;
+    text-align: left;
+    margin-left: 90px;
+    display: inline;
+}
+
+#skrillconfigchannel .skrillformfield #transactionmode {
+    margin-top: -20px;
+    text-align: right;
+    float: right;
+}
+
+.skrillformfield #transactionmode,
+#skrillmain .skrillnumericselect {
+    box-shadow:
+        0 3px 0 #ccc,
+        0 -1px #fff inset;
+    background: #f8f8f8;
+    color:#431032;
+    border:none;
+    outline:none;
+    display: inline-block;
+    appearance:none;
+    cursor:pointer;
+    font-size:14px !important;
+}
+
+.transactionmodewrapper {
+    position:relative;
+}
+
+.transactionmodewrapper:after {
+}
+
+.transactionmodewrapper:before {
+}
+
+#skrillformbuttons {
+    text-align: center;
+    width: 650px;
+}
+
+#skrillpaymentmethods .transactionmodewrapper {
+    width: 200px;
+    text-align: left;
+    margin-top: 5px;
+    vertical-align: text-top;
+}
+
+#skrillmain .skrillhideshow {
+    width: 230px;
+    float: right;
+    /* vertical-align: text-bottom; */
+    margin-top: 5px;
+    display: block;
+}
+
+/*
+.skrillformfield #transactionmode {
+    margin-right: -15px;
+    margin-left: 105px;
+    margin-top: -20px;
+}
+
+#skrillmain .transactionmodewrapper {
+    width: 300px;
+    margin-left: 100px;
+    vertical-align: text-top;
+    margin-top: 5px;
+    float: left;
+    text-align: left;
+}*/

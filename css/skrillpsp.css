@@ -125,12 +125,12 @@
 @media screen and (-webkit-min-device-pixel-ratio:0) {
     .skrillformfield #transactionmode,
     #skrillmain .skrillnumericselect {
-        padding-right:18px
+        padding-right:18px;
     }
 }
 
 .transactionmodewrapper {
-    position:relative
+    position:relative;
 }
 
 .transactionmodewrapper:after {
@@ -379,6 +379,8 @@ button.skrillbuttonconfirm {
     background:#E7D3E0;
     background:-webkit-gradient(linear, 0% 0%, 0% 100%, from(#E7D3E0), to(#EEE));
     background:-moz-linear-gradient(0% 90% 90deg, #EEE, #E7D3E0);
+    filter:  progid:DXImageTransform.Microsoft.gradient(GradientType=0,startColorstr='#E7D3E0', endColorstr='#EEE'); /* IE6 & IE7 */
+    -ms-filter: "progid:DXImageTransform.Microsoft.gradient(GradientType=0,startColorstr='#E7D3E0', endColorstr='#EEE')"; /* IE8 */
 
     -webkit-transition: all .4s ease-in-out;
     -moz-transition: all .4s ease-in-out;
@@ -393,12 +395,16 @@ button.skrillbuttonconfirm:hover {
     background:#862165;
     background:-webkit-gradient(linear, 0% 0%, 0% 100%, from(#862165), to(#431032));
     background:-moz-linear-gradient(0% 90% 90deg, #431032, #862165);
+    filter:  progid:DXImageTransform.Microsoft.gradient(GradientType=0,startColorstr='#862165', endColorstr='#431032'); /* IE6 & IE7 */
+    -ms-filter: "progid:DXImageTransform.Microsoft.gradient(GradientType=0,startColorstr='#862165', endColorstr='#431032')"; /* IE8 */
 }
 
 button.skrillbuttonconfirm:active {
     background:#862165;
     background:-webkit-gradient(linear, 0% 0%, 0% 100%, from(#431032), to(#862165));
     background:-moz-linear-gradient(0% 90% 90deg, #862165, #431032);
+    filter:  progid:DXImageTransform.Microsoft.gradient(GradientType=0,startColorstr='#431032', endColorstr='#862165'); /* IE6 & IE7 */
+    -ms-filter: "progid:DXImageTransform.Microsoft.gradient(GradientType=0,startColorstr='#431032', endColorstr='#862165')"; /* IE8 */
 }
 
 button.skrillbuttonconfirm.notransitions {
