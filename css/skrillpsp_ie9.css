@@ -34,11 +34,11 @@
 #skrillmain .skrillnumericselect {
     padding:3px;
     margin: 0;
-    /*border-radius:4px;*/
-    /*box-shadow:
+    border-radius:4px;
+    box-shadow:
         0 3px 0 #ccc,
-        0 -1px #fff inset;*/
-    /*background: #f8f8f8;
+        0 -1px #fff inset;
+    background: #f8f8f8;
     color:#431032;
     border:none;
     outline:none;
@@ -47,7 +47,7 @@
     cursor:pointer;
     font-size:14px !important;
     float: right;
-    margin: -5px -10px 0px 10px;*/
+    margin: -5px -5px 0px 5px;
 }
 
 .transactionmodewrapper {
@@ -55,9 +55,9 @@
 }
 
 .transactionmodewrapper:after {
-    content:'';
+
 }
 
 .transactionmodewrapper:before {
-    content:'';
+
 }

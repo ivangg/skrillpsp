@@ -17,6 +17,5 @@
 <!--[if IE 8]> 
 <link rel="stylesheet" type="text/css" media="screen" href="{$skrillmodule}/css/skrillpsp_ie8.css" />
 <![endif]-->
-
-
+<link rel="stylesheet" type="text/css" media="screen" href="{$skrillmodule}/css/skrillpsp_ff.css" />
 <script src="{$skrillmodule}/js/back_office.js" type="text/javascript"></script>

@@ -8,34 +8,56 @@ class SkrillPsp extends PaymentModule
     public static $views_dir    = 'skrillpsp/views/templates';
     public static $js_dir       = 'skrillpsp/js';
     public static $payments     = array('cc'    => 'Credit cards',
-                                    'wlt'   => 'Skrill Digital Wallet',
-                                    'obt'   => 'Online Bank Transfer',
-                                    'idl'   => 'iDEAL',
-                                    'did'   => 'Lastschrift (ELV)',
-                                    'jcb'   => 'Credit/debit card JCB');
+                                        'wlt'   => 'Skrill Digital Wallet',
+                                        'obt'   => 'Online Bank Transfer',
+                                        'idl'   => 'iDEAL',
+                                        'did'   => 'Lastschrift (ELV)',
+                                        'jcb'   => 'JCB and Diners',
+                                        'amx'   => 'American Express',
+                                        'csi'   => 'CartaSi',
+                                        'dnk'   => 'Dankort',
+                                        'ebt'   => 'Nordea Solo - Sweden',
+                                        'ent'   => 'eNETS',
+                                        'fbe'   => '4B and Euro 6000',
+                                        'gcb'   => 'Carte Bleue',
+                                        'gir'   => 'GiroPay',
+                                        'idl'   => 'iDEAL',
+                                        'lsr'   => 'Laser',
+                                        'mae'   => 'Maestro',
+                                        'npy'   => 'EPS Online-Überweisung',
+                                        'pli'   => 'POLi',
+                                        'psp'   => 'Postepay',
+                                        'pwy'   => 'Przelewy24',
+                                        'sft'   => 'Sofortüberweisung',
+                                        'so2'   => 'Nordea Solo - Finland');
+
+    const order_status_cancelled_e  = '6';
 
     const validation_result_ok_e    = 'ACK';
     const validation_result_error_e = 'NOK';
     const va_transaction_pending_e  = 'VA.DB.80.00';
-    
+
     const payment_code_qc_e         = 'VA.DB';
     const payment_code_rg_e         = 'CC.RG';
     const payment_code_pa_e         = 'CC.PA';
     const payment_code_db_e         = 'CC.DB';
     const payment_code_cp_e         = 'CC.CP';
-    
+    const payment_code_cc_rf_e      = 'CC.RF';
+    const payment_code_va_rf_e      = 'VA.RF';
+
     const processing_status_code_ok_e   = '90';
     const processing_reason_code_ok_e   = '00';
     const waiting_status_code_ok_e      = '80';
     const waiting_reason_code_ok_e      = '00';
-    
+
     private $_redirecturl = '';
     private $_redirectparams = array();
-    
+
     private $_configErrors;
     private $_urls;
     private $_html;
-    
+    private $_debug;
+
     public function __construct ()
 	{
 	$this->name = 'skrillpsp';
@@ -44,18 +66,19 @@ class SkrillPsp extends PaymentModule
 	$this->author = 'Skrill Holdings Ltd.';
 	$this->need_instance = 1;
         $this->is_configurable = 1;
-        
+
         $this->currencies = true;
 	$this->currencies_mode = 'radio';
-	
+
         parent::__construct();
-	
+
         $this->page = basename(__FILE__, '.php');
-        
+
 	$this->displayName = $this->l('Skrill PSP Payments');
 	$this->description = $this->l('Official Skrill PSP Payment Module');
+        $this->_debug = Configuration::get('SKRILLPSP_DEBUG') ? true : false;
 	}
-	
+
     public function install ()
 	{
         if (parent::install() == false ||
@@ -63,7 +86,8 @@ class SkrillPsp extends PaymentModule
             !$this->registerHook('paymentReturn') ||
             !$this->registerHook('backOfficeHeader') ||
             !$this->registerHook('adminOrder') ||
-            !$this->registerHook('hookupdateOrderStatus'))
+            !$this->registerHook('updateOrderStatus') ||
+            !$this->registerHook('actionOrderStatusPostUpdate'))
             return false;
 
         Configuration::updateValue('SKRILLPSP_TESTMODE', 0);
@@ -72,7 +96,9 @@ class SkrillPsp extends PaymentModule
         Configuration::updateValue('SKRILLPSP_LOGIN', '');
         Configuration::updateValue('SKRILLPSP_PASSWORD', '');
         Configuration::updateValue('SKRILLPSP_TRANSACTION_MODE', 0);
-        
+        Configuration::updateValue('SKRILLPSP_AUTOMATIC_REFUND', 0);
+        Configuration::updateValue('SKRILLPSP_DEBUG', 0);
+
         Configuration::updateValue('SKRILLPSP_TESTPOST_URL',
                                    'https://test.nextgenpay.com/frontend/payment.prc');
         Configuration::updateValue('SKRILLPSP_TESTXML_URL',
@@ -81,15 +107,17 @@ class SkrillPsp extends PaymentModule
                                    'https://nextgenpay.com/frontend/payment.prc');
         Configuration::updateValue('SKRILLPSP_XML_URL',
                                    'https://nextgenpay.com/payment/ctpe');
-            
+
         foreach (self::$payments as $pmethod => $plabel)
             {
             $pmethodname = 'SKRILLPSP_PMETHOD_' . strtoupper($pmethod);
             Configuration::updateValue($pmethodname, 0);
-            Configuration::updateValue($pmethodname . '_ORDER', 0); 
+            Configuration::updateValue($pmethodname . '_ORDER', 0);
             Configuration::updateValue($pmethodname . '_COUNTRIES', '');
             }
-            
+
+        $foreign_key = 'FOREIGN KEY (`order_id`) REFERENCES `' .
+                        _DB_PREFIX_ . 'orders`(`order_id`) ON DELETE CASCADE';
         if (!Db::getInstance()->Execute('CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'skrillpsp_trns` (
                                         `order_id`  int(10) unsigned NOT NULL,
                                         `cart_id`   int(10) unsigned NOT NULL,
@@ -100,19 +128,20 @@ class SkrillPsp extends PaymentModule
                                         `currency`  char(3)         NOT NULL,
                                         `processing_code` varchar(11) NOT NULL,
                                         `auxdata`   blob            DEFAULT NULL,
-                                        `tadded`    timestamp       DEFAULT CURRENT_TIMESTAMP, 
-                                        
-                                        PRIMARY KEY (`order_id`, `cart_id`, `trn_id`)
-                                        ) ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8'))
+                                        `tadded`    timestamp       DEFAULT CURRENT_TIMESTAMP,
+
+                                        PRIMARY KEY (`order_id`, `cart_id`, `trn_id`)' .
+                                        _MYSQL_ENGINE_ == 'InnoDB' ? ", $foreign_key" : ''
+                                        . ') ENGINE=' . _MYSQL_ENGINE_ . ' DEFAULT CHARSET=utf8'))
 	    return false;
 
         return true;
         }
-    
+
     public function getContent ()
         {
         $this->_saveConfiguration();
-        
+
         foreach (Currency::getCurrencies() as $currency)
             {
             $currency_iso_code = $currency['iso_code'];
@@ -122,7 +151,7 @@ class SkrillPsp extends PaymentModule
             $channels[$currency_iso_code]['password'] = Configuration::get('SKRILLPSP_PASSWORD_' . $currency_iso_code);
             $channels[$currency_iso_code]['testmode'] = !Configuration::get('SKRILLPSPS_TESTMODE_' . $currency_iso_code);
             }
-        
+
         $paymentmethods = array();
         foreach (self::$payments as $pmethod => $plabel)
             {
@@ -145,6 +174,10 @@ class SkrillPsp extends PaymentModule
                                              'login'        => Configuration::get('SKRILLPSP_LOGIN'),
                                              'password'     => Configuration::get('SKRILLPSP_PASSWORD'),
                                              'testmode'     => !Configuration::get('SKRILLPSP_TESTMODE'),
+                                             'automaticrefund'
+                                                            => Configuration::get('SKRILLPSP_AUTOMATIC_REFUND'),
+                                             'debugmode'
+                                            		    => Configuration::get('SKRILLPSP_DEBUG'),
                                              'transactionmode'
                                                             => Configuration::get('SKRILLPSP_TRANSACTION_MODE'),
                                              'tmodes'       => array(array('value' => 'PA',
@@ -156,20 +189,20 @@ class SkrillPsp extends PaymentModule
                                                             => $paymentmethods,
                                              'paymentmethodssz'
                                                             => count($paymentmethods)));
-            
+
         return $this->context->smarty->fetch(_PS_MODULE_DIR_ . self::$views_dir . '/back/back_office.tpl');
         }
-        
-    public function hookBackOfficeHeader ()
+
+    public function hookBackOfficeHeader ($params)
         {
         $this->context->smarty->assign('skrillmodule', _MODULE_DIR_ . $this->name);
         return $this->context->smarty->fetch(_PS_MODULE_DIR_ . self::$views_dir . '/back/header.tpl');
         }
-        
+
     public function hookPayment ($params)
         {
         $currency = $this->context->currency;
-        
+
         $currency_iso_code = $currency->iso_code;
         $channel = array();
         $channel['transactionmode'] = Configuration::get('SKRILLPSP_TRANSACTION_MODE');
@@ -189,17 +222,17 @@ class SkrillPsp extends PaymentModule
             $channel['password'] = Configuration::get('SKRILLPSP_PASSWORD');
             $channel['testmode'] = Configuration::get('SKRILLPSP_TESTMODE');
             }
-        
+
         $secure_url = $channel['testmode'] ? Configuration::get('SKRILLPSP_TESTPOST_URL') :
                                             Configuration::get('SKRILLPSP_POST_URL');
-        
-        $pmethods = array();                                
+
+        $pmethods = array();
         foreach (self::$payments as $payment_key => $payment_val)
             {
             if (Configuration::get('SKRILLPSP_PMETHOD_' . strtoupper($payment_key)))
                 array_push($pmethods, strtoupper($payment_key));
             }
-            
+
         $payments_config = array();
         foreach ($pmethods as $pmethod)
             {
@@ -222,13 +255,31 @@ class SkrillPsp extends PaymentModule
                     $requestdata['NAME.COMPANY'] = '';
                     $requestdata['NAME.GIVEN'] = '';
                     $requestdata['NAME.FAMILY'] = '';
-                case 'WLT' :
-                case 'OBT' :
+                    $requestdata['CRITERION.MONEYBOOKERS_payment_methods'] = 'JCB, DIN';
+                case 'FBE' :
+                    if (!$requestdata['CRITERION.MONEYBOOKERS_payment_methods'])
+                        $requestdata['CRITERION.MONEYBOOKERS_payment_methods'] = 'ACC';
+                case 'AMX' :
+                case 'CSI' :
+                case 'DNK' :
+                case 'EBT' :
+                case 'ENT' :
+                case 'GCB' :
+                case 'GIR' :
                 case 'IDL' :
+                case 'LSR' :
+                case 'MAE' :
+                case 'NPY' :
+                case 'PLI' :
+                case 'PSP' :
+                case 'PWY' :
+                case 'SFT' :
+                case 'SO2' :
                 case 'DID' :
                     $requestdata['PAYMENT.CODE'] = 'VA.DB';
                     $requestdata['ACCOUNT.BRAND'] = 'MONEYBOOKERS';
-                    $requestdata['CRITERION.MONEYBOOKERS_payment_methods'] = $pmethod;
+                    if (!$requestdata['CRITERION.MONEYBOOKERS_payment_methods'])
+                        $requestdata['CRITERION.MONEYBOOKERS_payment_methods'] = $pmethod;
                     $requestdata['FRONTEND.ENABLED'] = 'true';
                     $requestdata['FRONTEND.COLLECT_DATA'] = 'false';
                     $requestdata['FRONTEND.PM.DEFAULT_DISABLE_ALL'] = 'true';
@@ -264,36 +315,51 @@ class SkrillPsp extends PaymentModule
             }
         $this->context->smarty->assign(array('payments_config' => $payments_config,
                                              'imgroot' => _MODULE_DIR_ . $this->name . '/images'));
-        
+
         return $this->context->smarty->fetch(_PS_MODULE_DIR_ . self::$views_dir . '/front/skrillpsp.tpl');
         }
-        
-    public function hookPaymentReturn ()
+
+    public function hookPaymentReturn ($params)
 	{
 	if (!$this->active)
 	    return;
-	
+
 	$lcart_id = $_GET['id_cart'] ? $_GET['id_cart'] : $this->context->cookie->ScartID;
-        
+
         $trndata = Db::getInstance()->getRow('
                 SELECT `order_id`, `trn_id`
                 FROM `' . _DB_PREFIX_ . 'skrillpsp_trns`
                 WHERE `cart_id` = ' . (int)$lcart_id);
         $key = split("_", $trndata['trn_id']);
-        
+
 	$this->context->smarty->assign('order_id', $trndata['order_id']);
-	
+
 	return $this->context->smarty->fetch(_PS_MODULE_DIR_ . self::$views_dir . '/front/confirmation.tpl');
 	}
-        
+
     public function hookAdminOrder ($params)
         {
-        if (Tools::isSubmit('btnSkrillPSPCapture'))
-            $this->capture($params['id_order']);
-    	elseif (Tools::isSubmit('btnSkrillPSPRefund'))
-	    $this->refund($params['id_order']);
-        
         $this->_html = '';
+
+        if (Tools::isSubmit('btnSkrillPSPCapture'))
+            {
+            $msgclass = $this->capture($params['id_order']) ? 'info' : 'error';
+            $this->context->smarty->assign(array('module' => $this->name,
+                                                 'capturemessage' => $this->_html,
+                                                 'msgclass' => $msgclass));
+            $this->_html = $this->context->smarty->fetch(_PS_MODULE_DIR_ . self::$views_dir .
+                                                         '/back/order/capture_result.tpl');
+            }
+    	elseif (Tools::isSubmit('btnSkrillPSPRefund'))
+            {
+            $msgclass = $this->refund($params['id_order']) ? 'info' : 'error';
+	    $this->context->smarty->assign(array('module' => $this->name,
+                                                 'refundmessage' => $this->_html,
+                                                 'msgclass' => $msgclass));
+            $this->_html = $this->context->smarty->fetch(_PS_MODULE_DIR_ . self::$views_dir .
+                                                         '/back/order/refund_result.tpl');
+            }
+
         if ($this->_canCapture((int)$params['id_order']) &&
             !$this->_isCaptured((int)$params['id_order']))
             {
@@ -302,35 +368,56 @@ class SkrillPsp extends PaymentModule
             $this->_html .= $this->context->smarty->fetch(_PS_MODULE_DIR_ . self::$views_dir .
                                                          '/back/order/capture.tpl');
             }
-        /*if ($this->_canRefund((int)$params['id_order']) &&
+
+        if ($this->_canRefund((int)$params['id_order']) &&
             !$this->_isRefunded((int)$params['id_order']))
-            $this->_html .= $this->context->smatry->fetch(_PS_MODULE_DIR_ . self::$views_dir .
+            {
+            $this->context->smarty->assign(array('module' => $this->name,
+                                                 'params' => $params));
+            $this->_html .= $this->context->smarty->fetch(_PS_MODULE_DIR_ . self::$views_dir .
                                                          '/back/order/refund.tpl');
-            */
-        
+            }
+
         return $this->_html;
         }
-        
+
+    public function hookactionOrderStatusPostUpdate ($params)
+        {
+        if (Tools::isSubmit('submitState') &&
+            Tools::getValue('id_order_state') == self::order_status_cancelled_e)
+            {
+            if (!Configuration::get('SKRILLPSP_AUTOMATIC_REFUND') ||
+                !$this->_canRefund($params['id_order']))
+                return;
+
+            $this->refund($params['id_order']);
+
+            $this->context->smarty->assign(array('module' => $this->name,
+                                                 'refundmessage' => $this->_html));
+            $this->_html = $this->context->smarty->fetch(_PS_MODULE_DIR_ . self::$views_dir .
+                                                         '/back/order/refund_result.tpl');
+            return $this->_html;
+            }
+
+        return $this->_html;
+        }
+
     public function hookupdateOrderStatus ()
         {
-        $this->_html = 'BLAH BLAH BLAH BLAHBLAH BLAH BLAH BLAHBLAH BLAH BLAH BLAHBLAH BLAH BLAH BLAH';
-        
-        $logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/datadump.log', "a+");
-        fprintf($logh, "%s\n\n\n", $this->_html);
-        fclose($logh);
-        
+        $this->_html = '';
+
         return $this->_html;
         }
 
     public function getStatusUrl ()
         {
-        return 'https://' . $_SERVER['HTTP_HOST'] . _MODULE_DIR_ . $this->name . '/validation.php';    
+        return 'https://' . $_SERVER['HTTP_HOST'] . _MODULE_DIR_ . $this->name . '/validation.php';
         }
-        
+
     public function getSuccessUrl ($cart_id = 0)
         {
         $lcart_id = $cart_id ? $cart_id : $this->context->cookie->ScartID;
-        
+
         $trndata = Db::getInstance()->getRow('
                 SELECT `order_id`, `trn_id`
                 FROM `' . _DB_PREFIX_ . 'skrillpsp_trns`
@@ -342,7 +429,7 @@ class SkrillPsp extends PaymentModule
                 $lcart_id . '&id_module=' . $this->id . '&id_order=' . $trndata['order_id'] .
                 '&key=' . $key[2];
         }
-        
+
     public function getErrorUrl ()
         {
         return  'https://' . $_SERVER['HTTP_HOST'] . Context::getContext()->shop->getBaseURI() .
@@ -353,29 +440,25 @@ class SkrillPsp extends PaymentModule
         {
         return $this->_redirecturl;
         }
-        
+
     public function getRedirectParams ()
         {
         return $this->_redirectparams;
         }
-      
+
     public function save3DSRedirectdata ($data)
         {
         Db::getInstance()->Execute('INSERT INTO `' . _DB_PREFIX_ . 'skrillpsp_trns` (`order_id`,
                                                                         `trn_id`,
                                                                         `unique_id`,
                                                                         `payment_code`,
-                                                                        `amount`,
-                                                                        `currency`,
                                                                         `processing_code`,
                                                                         `cart_id`,
-                                                                        `auxdata`) 
+                                                                        `auxdata`)
                                     VALUES(' . $data['ORDER_ID'] . ',
                                             \'' . $data['TRANSACTIONID'] . '\',
                                             \'' . $data['UNIQUEID'] . '\',
                                             \'' . $data['PAYMENT_CODE'] . '\',
-                                            ' . (float)$data['AMOUNT'] . ',
-                                            \'' . $data['CURRENCY'] . '\',
                                             \'' . $data['PROCESSING_CODE'] . '\',
                                             ' . $data['CART_ID'] . ',
                                             \'' . $data['AUXDATA'] . '\')');
@@ -434,24 +517,24 @@ class SkrillPsp extends PaymentModule
             $channel['password'] = Configuration::get('SKRILLPSP_PASSWORD');
             $channel['testmode'] = Configuration::get('SKRILLPSP_TESTMODE');
             }
-        
+
         $secure_url = $channel['testmode'] ? Configuration::get('SKRILLPSP_TESTXML_URL') :
                                             Configuration::get('SKRILLPSP_XML_URL');
 
         $requestdata = array();
-        
+
         $requestdata['TRANSACTION.CHANNEL'] = $channel['channel'];
         $requestdata['SECURITY.SENDER'] = $channel['sender'];
         $requestdata['USER.LOGIN'] = $channel['login'];
         $requestdata['USER.PWD'] = $channel['password'];
         $requestdata['SECURITY.TOKEN'] = '';
-        
+
         foreach ($requestfields as $fieldid)
             {
             $rfieldid = preg_replace('/_/', '.', $fieldid, 1);
             if ($rfieldid == 'IDENTIFICATION.UNIQUEID')
                 $requestdata['ACCOUNT.REGISTRATION'] = $data[$fieldid];
-            else 
+            else
                 $requestdata[$rfieldid] = $data[$fieldid];
             }
         $requestdata['TRANSACTION.RESPONSE'] = 'ASYNC';
@@ -461,19 +544,21 @@ class SkrillPsp extends PaymentModule
         $requestdata['CRITERION.MONEYBOOKERS_hide_login'] = 1;
         $requestdata['PAYMENT.CODE'] = $channel['transactionmode'] == 'PA' ? self::payment_code_pa_e :
                                                                             self::payment_code_db_e;
-        
+
         $xml = file_get_contents(_PS_MODULE_DIR_ . $this->name . '/xml/general.xml');
         foreach ($requestdata as $key => $val)
             {
             $xml = str_replace('{{'.$key.'}}', htmlspecialchars($val), $xml);
             }
         $xml = preg_replace('/\{\{[^\{\}]+\}\}/', '', $xml);
-        
+
+        if ($this->_debug)  Logger::addLog("Preauthorization request: \n" . $requestdata);
         $response = $this->_execXMLRequest($xml, $secure_url);
+        if ($this->_debug)  Logger::addLog("Preauthorization response: \n" . $response);
         $parsed_response = $this->_parseXMLResponse($response);
-        
+
         $codes = split("\.", $parsed_response['PROCESSING_CODE']);
-        
+
         if ($codes[2] == self::processing_status_code_ok_e &&
             $codes[3] == self::processing_reason_code_ok_e)
             {
@@ -486,8 +571,8 @@ class SkrillPsp extends PaymentModule
                         'payment_status' => $parsed_response['RETURN']), null, false, $cart_ids[2]);
             $parsed_response['ORDER_ID'] = (int)$this->currentOrder;
             $parsed_response['CART_ID'] = (int)$cart_ids[0];
-            $this->saveTransaction($parsed_response);
-            
+            $this->_saveTransaction($parsed_response);
+
             return true;
             }
         elseif ($codes[2] == self::waiting_status_code_ok_e &&
@@ -495,7 +580,7 @@ class SkrillPsp extends PaymentModule
             {
             $parsed_response_3ds = $this->_process3DSResponse($response);
             $cart_ids = split("_", $parsed_response_3ds['TRANSACTIONID']);
-            
+
             $this->_redirecturl = $parsed_response_3ds['REDIRECT'];
             $this->_redirectparams = $parsed_response_3ds['PARAMETER'];
             $parsed_response_3ds['ORDER_ID'] = 0;
@@ -503,17 +588,19 @@ class SkrillPsp extends PaymentModule
             $parsed_response_3ds['AUXDATA'] = serialize(array('redirecturl' => $this->_redirecturl,
                                                             'redirectparams' => $this->_redirectparams));
             $this->save3DSRedirectdata($parsed_response_3ds);
-            
+
             return true;
             }
-            
+
         return false;
         }
-        
+
     public function verify3DSResponse ($response)
         {
+        if ($this->_debug)  Logger::addLog("3DS Response: \n" . $response);
+
         $parsed_response = $this->_parseXMLResponse($response);
-        
+
         $codes = split("\.", $parsed_response['PROCESSING_CODE']);
         if ($codes[2] == self::processing_status_code_ok_e &&
             $codes[3] == self::processing_reason_code_ok_e)
@@ -527,11 +614,11 @@ class SkrillPsp extends PaymentModule
                         'payment_status' => $parsed_response['RETURN']), null, false, $cart_ids[2]);
             $parsed_response['ORDER_ID'] = (int)$this->currentOrder;
             $parsed_response['CART_ID'] = (int)$cart_ids[0];
-            $this->saveTransaction($parsed_response);
+            $this->_saveTransaction($parsed_response);
 
             return true;
             }
-            
+
         return false;
         }
 
@@ -542,7 +629,7 @@ class SkrillPsp extends PaymentModule
                         'PRESENTATION_CURRENCY' => 'CURRENCY',
                         'IDENTIFICATION_UNIQUEID' => 'IDENTIFICATION_UNIQUEID');
         $codes = split("\.", $data['PROCESSING_CODE']);
-        
+
         if ($codes[2] == '90' &&
             $codes[3] == '00')
             {
@@ -553,58 +640,32 @@ class SkrillPsp extends PaymentModule
                         $this->displayName, $this->l('Skrill Transaction ID: ') . $data['IDENTIFICATION_TRANSACTIONID'],
                         array('transaction_id' => $data['IDENTIFICATION_TRANSACTIONID'],
                         'payment_status' => $data['PROCESSING_RETURN']), null, false, $cart_ids[2]);
-            
+
             $parsed_response = array();
             foreach ($data as $key => $val)
                 $parsed_response[$fields[$key] ? $fields[$key] : $key] = $val;
             $parsed_response['ORDER_ID'] = (int)$this->currentOrder;
             $parsed_response['CART_ID'] = (int)$cart_ids[0];
-            $this->saveTransaction($parsed_response);
-            
+            $this->_saveTransaction($parsed_response);
+
             return true;
             }
-            
+
         return false;
         }
 
-    public function saveTransaction ($data)
-        {
-        Db::getInstance()->Execute('INSERT INTO `' . _DB_PREFIX_ . 'skrillpsp_trns` (`order_id`,
-                                                                        `trn_id`,
-                                                                        `unique_id`,
-                                                                        `payment_code`,
-                                                                        `amount`,
-                                                                        `currency`,
-                                                                        `processing_code`,
-                                                                        `cart_id`) 
-			VALUES(' . $data['ORDER_ID'] . ',
-                                \'' . $data['TRANSACTIONID'] . '\',
-                                \'' . $data['UNIQUEID'] . '\',
-                                \'' . $data['PAYMENT_CODE'] . '\',
-                                ' . (float)$data['AMOUNT'] . ',
-                                \'' . $data['CURRENCY'] . '\',
-                                \'' . $data['PROCESSING_CODE'] . '\',
-                                ' . $data['CART_ID'] . ')');
-
-	return Db::getInstance()->Insert_ID();
-        }
-        
     public function capture ($order_id)
         {
         if (!($transaction = $this->_canCapture($order_id)))
             return false;
-        
-        $logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/datadump.log', "a+");
-        fprintf($logh, "%s\n\n\n", $transaction['unique_id']);
-        fclose($logh);
-        
+
         $order = new Order((int)$order_id);
         $billingaddress = new Address((int)$order->id_address_invoice);
         $billingaddress->state	= new State($billingaddress->id_state);
         $customer = new Customer((int)$order->id_customer);
         $currency = new Currency($order->id_currency);
         $requestdata = array();
-        
+
         $requestdata['PRESENTATION.AMOUNT'] = $order->total_paid;
         $requestdata['PRESENTATION.CURRENCY'] = $currency->iso_code;
         $requestdata['PRESENTATION.USAGE'] = '';
@@ -616,7 +677,7 @@ class SkrillPsp extends PaymentModule
         $requestdata['ADDRESS.STATE'] = $billingaddress->state->name;
         $requestdata['ADDRESS.COUNTRY'] = $billingaddress->country;
         $requestdata['CONTACT.EMAIL'] = $customer->email;
-        
+
         $currency_iso_code = $currency->iso_code;
         $channel = array();
         $channel['transactionmode'] = Configuration::get('SKRILLPSP_TRANSACTION_MODE');
@@ -636,10 +697,10 @@ class SkrillPsp extends PaymentModule
             $channel['password'] = Configuration::get('SKRILLPSP_PASSWORD');
             $channel['testmode'] = Configuration::get('SKRILLPSP_TESTMODE');
             }
-        
+
         $secure_url = $channel['testmode'] ? Configuration::get('SKRILLPSP_TESTXML_URL') :
                                             Configuration::get('SKRILLPSP_XML_URL');
-        
+
         $requestdata['TRANSACTION.CHANNEL'] = $channel['channel'];
         $requestdata['SECURITY.SENDER'] = $channel['sender'];
         $requestdata['USER.LOGIN'] = $channel['login'];
@@ -651,43 +712,129 @@ class SkrillPsp extends PaymentModule
         $requestdata['FRONTEND.SESSION_ID'] = Tools::getToken();
         $requestdata['PAYMENT.CODE'] = self::payment_code_cp_e;
         $requestdata['IDENTIFICATION.REFERENCEID'] = $transaction['unique_id'];
-        $requestdata['IDENTIFICATION.TRANSACTIONID'] = $transaction['trn_id']; 
+        $requestdata['IDENTIFICATION.TRANSACTIONID'] = $transaction['trn_id'];
         $requestdata['TRANSACTION.RESPONSE'] = 'ASYNC';
 
-        $logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/datadump.log', "a+");
-        fprintf($logh, "%s\n\n\n", var_export($requestdata, true));
-        fclose($logh);
-        
         $xml = file_get_contents(_PS_MODULE_DIR_ . $this->name . '/xml/general.xml');
         foreach ($requestdata as $key => $val)
             {
             $xml = str_replace('{{'.$key.'}}', htmlspecialchars($val), $xml);
             }
         $xml = preg_replace('/\{\{[^\{\}]+\}\}/', '', $xml);
-        
+
+        if ($this->_debug)  Logger::addLog("Capture transaction request: \n" . $xml);
         $response = $this->_execXMLRequest($xml, $secure_url);
+        if ($this->_debug)  Logger::addLog('Capture transaction response: ' . $response);
         $parsed_xml = $this->_parseXMLResponse($response);
-        
+
+        $this->_html = $parsed_xml['RETURN'];
+
         $codes = split("\.", $parsed_xml['PROCESSING_CODE']);
         if ($codes[2] == self::processing_status_code_ok_e &&
             $codes[3] == self::processing_reason_code_ok_e)
             {
+            $auxdata['code'] = self::payment_code_cp_e;
+            $auxdata['referenceid'] = $parsed_xml['REFERENCEID'];
             Db::getInstance()->Execute('UPDATE `' . _DB_PREFIX_ . 'skrillpsp_trns`
-                                       SET `auxdata`= 
-                                        \'' . serialize($parsed_xml['REFERENCEID']) . '\'
+                                       SET `auxdata`=
+                                        \'' . serialize($auxdata) . '\'
                                         WHERE trn_id=\'' . $parsed_xml['TRANSACTIONID'] . '\'');
             return true;
             }
-        $logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/datadump.log', "a+");
-        fprintf($logh, "%s\n\n\n", var_export($response, true));
-        fclose($logh);
-        
+
         return false;
         }
-        
+
     public function refund ($order_id)
         {
-        
+        if (!($transaction = $this->_canRefund($order_id)))
+            return false;
+
+        $order = new Order((int)$order_id);
+        $billingaddress = new Address((int)$order->id_address_invoice);
+        $billingaddress->state	= new State($billingaddress->id_state);
+        $customer = new Customer((int)$order->id_customer);
+        $currency = new Currency($order->id_currency);
+        $requestdata = array();
+
+        $requestdata['PRESENTATION.AMOUNT'] = $order->total_paid;
+        $requestdata['PRESENTATION.CURRENCY'] = $currency->iso_code;
+        $requestdata['PRESENTATION.USAGE'] = '';
+
+        $currency_iso_code = $currency->iso_code;
+        $channel = array();
+        $channel['transactionmode'] = Configuration::get('SKRILLPSP_TRANSACTION_MODE');
+        $channel['channel'] = Configuration::get('SKRILLPSP_CHANNEL_' . $currency_iso_code);
+        $channel['sender'] = Configuration::get('SKRILLPSP_SENDER_' . $currency_iso_code);
+        $channel['login'] = Configuration::get('SKRILLPSP_LOGIN_' . $currency_iso_code);
+        $channel['password'] = Configuration::get('SKRILLPSP_PASSWORD_' . $currency_iso_code);
+        $channel['testmode'] = Configuration::get('SKRILLPSPS_TESTMODE_' . $currency_iso_code);
+        if (!strlen($channel['channel']) ||
+            !strlen($channel['sender']) ||
+            !strlen($channel['login']) ||
+            !strlen($channel['password']))
+            {
+            $channel['channel'] = Configuration::get('SKRILLPSP_CHANNEL');
+            $channel['sender'] = Configuration::get('SKRILLPSP_SENDER');
+            $channel['login'] = Configuration::get('SKRILLPSP_LOGIN');
+            $channel['password'] = Configuration::get('SKRILLPSP_PASSWORD');
+            $channel['testmode'] = Configuration::get('SKRILLPSP_TESTMODE');
+            }
+
+        $secure_url = $channel['testmode'] ? Configuration::get('SKRILLPSP_TESTXML_URL') :
+                                            Configuration::get('SKRILLPSP_XML_URL');
+
+        $requestdata['TRANSACTION.CHANNEL'] = $channel['channel'];
+        $requestdata['SECURITY.SENDER'] = $channel['sender'];
+        $requestdata['USER.LOGIN'] = $channel['login'];
+        $requestdata['USER.PWD'] = $channel['password'];
+        $requestdata['SECURITY.TOKEN'] = '';
+        $requestdata['TRANSACTION.RESPONSE'] = 'ASYNC';
+        $requestdata['TRANSACTION.MODE'] = $channel['testmode'] ? 'CONNECTOR_TEST' : 'LIVE';
+        $requestdata['FRONTEND.RESPONSE_URL'] = $this->getStatusUrl();
+        $requestdata['FRONTEND.SESSION_ID'] = Tools::getToken();
+        $requestdata['PAYMENT.CODE'] = ($transaction['payment_code'] == self::payment_code_pa_e ||
+                                        $transaction['payment_code'] == self::payment_code_db_e) ?
+                                                                        self::payment_code_cc_rf_e :
+                                                                        self::payment_code_va_rf_e;
+        $requestdata['IDENTIFICATION.REFERENCEID'] = $transaction['unique_id'];
+        $requestdata['IDENTIFICATION.TRANSACTIONID'] = $transaction['trn_id'];
+        $requestdata['TRANSACTION.RESPONSE'] = 'ASYNC';
+
+        $xml = file_get_contents(_PS_MODULE_DIR_ . $this->name . '/xml/general.xml');
+        foreach ($requestdata as $key => $val)
+            {
+            $xml = str_replace('{{'.$key.'}}', htmlspecialchars($val), $xml);
+            }
+        $xml = preg_replace('/\{\{[^\{\}]+\}\}/', '', $xml);
+
+        if ($this->_debug)  Logger::addLog("Refund transaction request: \n" . $xml);
+        $response = $this->_execXMLRequest($xml, $secure_url);
+        if ($this->_debug)  Logger::addLog('Refund transaction response: ' . $response);
+
+        $logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/datadump.log', "a+");
+        fprintf($logh, "%s\n\n\n", $response);
+        fclose($logh);
+        $parsed_xml = $this->_parseXMLResponse($response);
+
+        $this->_html = $parsed_xml['RETURN'];
+
+        $auxdata['code'] = $requestdata['PAYMENT.CODE'];
+        $auxdata['result'] = htmlspecialchars($parsed_xml['RETURN'], ENT_QUOTES);
+
+        Db::getInstance()->Execute('UPDATE `' . _DB_PREFIX_ . 'skrillpsp_trns`
+                                   SET `auxdata`=
+                                    \'' . serialize($auxdata) . '\'
+                                    WHERE trn_id=\'' . $parsed_xml['TRANSACTIONID'] . '\'');
+
+        $codes = split("\.", $parsed_xml['PROCESSING_CODE']);
+        if ($codes[2] == self::processing_status_code_ok_e &&
+            $codes[3] == self::processing_reason_code_ok_e)
+            {
+            return true;
+            }
+
+        return false;
         }
 
     public function uninstall ()
@@ -698,6 +845,8 @@ class SkrillPsp extends PaymentModule
         Configuration::deleteByName('SKRILLPSP_LOGIN');
         Configuration::deleteByName('SKRILLPSP_PASSWORD');
         Configuration::deleteByName('SKRILLPSP_TRANSACTION_MODE');
+        Configuration::deleteByName('SKRILLPSP_AUTOMATIC_REFUND');
+        Configuration::deleteByName('SKRILLPSP_DEBUG');
         foreach (self::$payments as $pmethod => $plabel)
             {
             Configuration::deleteByName('SKRILLPSP_PMETHOD_' . strtoupper($pmethod));
@@ -706,12 +855,53 @@ class SkrillPsp extends PaymentModule
 
 	parent::uninstall();
         }
-        
-    private function _canRefund ()
+
+    private function _saveTransaction ($data)
         {
-        
+        Db::getInstance()->Execute('INSERT INTO `' . _DB_PREFIX_ . 'skrillpsp_trns` (`order_id`,
+                                                                        `trn_id`,
+                                                                        `unique_id`,
+                                                                        `payment_code`,
+                                                                        `amount`,
+                                                                        `currency`,
+                                                                        `processing_code`,
+                                                                        `cart_id`)
+			VALUES(' . $data['ORDER_ID'] . ',
+                                \'' . $data['TRANSACTIONID'] . '\',
+                                \'' . $data['UNIQUEID'] . '\',
+                                \'' . $data['PAYMENT_CODE'] . '\',
+                                ' . (float)$data['AMOUNT'] . ',
+                                \'' . $data['CURRENCY'] . '\',
+                                \'' . $data['PROCESSING_CODE'] . '\',
+                                ' . $data['CART_ID'] . ')');
+
+	return Db::getInstance()->Insert_ID();
         }
-        
+
+    private function _canRefund ($order_id)
+        {
+        $order = new Order((int)$order_id);
+        if ($order->current_state == self::order_status_cancelled_e)
+            return false;
+
+        $data = Db::getInstance()->getRow('
+                SELECT `payment_code`, `unique_id`, `trn_id`,`auxdata`
+                FROM `' . _DB_PREFIX_ . 'skrillpsp_trns`
+                WHERE `order_id` = ' . (int)$order_id . ' ORDER BY `tadded` DESC');
+
+        if (!$data || ($data['payment_code'] !== self::payment_code_pa_e &&
+            $data['payment_code'] !== self::payment_code_db_e))
+            return false;
+
+        $capture = unserialize($data['auxdata']);
+        if ($data['payment_code'] === self::payment_code_pa_e &&
+            ($capture['code'] != self::payment_code_cp_e ||
+            !strlen($capture['referenceid'])))
+            return false;
+
+        return $data;
+        }
+
     private function _canCapture ($order_id)
         {
         $data = Db::getInstance()->getRow('
@@ -719,16 +909,12 @@ class SkrillPsp extends PaymentModule
                 FROM `' . _DB_PREFIX_ . 'skrillpsp_trns`
                 WHERE `order_id` = ' . (int)$order_id . ' ORDER BY `tadded` DESC');
 
-        $logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/datadump.log', "a+");
-        fprintf($logh, "%s\n\n\n", var_export($data, true));
-        fclose($logh);
-        
         if (!$data || $data['payment_code'] !== self::payment_code_pa_e)
             return false;
-        
+
         return $data;
         }
-        
+
     private function _isCaptured ($order_id)
         {
         $data = Db::getInstance()->getRow('
@@ -736,30 +922,44 @@ class SkrillPsp extends PaymentModule
                 FROM `' . _DB_PREFIX_ . 'skrillpsp_trns`
                 WHERE `order_id` = ' . (int)$order_id . ' ORDER BY `tadded` DESC');
 
-        $referenceid = unserialize($data['auxdata']);
-        
-        $logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/datadump.log', "a+");
-        fprintf($logh, "%s %s\n\n\n", $data['auxdata'], $referenceid);
-        fclose($logh);
-        
-        if (strlen($referenceid))
+        $capture = unserialize($data['auxdata']);
+
+        if ($capture['code'] == self::payment_code_cp_e &&
+            strlen($capture['referenceid']))
             return true;
-        
+
         return false;
         }
-        
+
+    private function _isRefunded ($order_id)
+        {
+        $data = Db::getInstance()->getRow('
+                SELECT `auxdata`
+                FROM `' . _DB_PREFIX_ . 'skrillpsp_trns`
+                WHERE `order_id` = ' . (int)$order_id . ' ORDER BY `tadded` DESC');
+
+        $refund = unserialize($data['auxdata']);
+        if (isset($refund['code']) &&
+            ($refund['code'] == self::payment_code_cc_rf_e ||
+            $refund['code'] == self::payment_code_va_rf_e) &&
+            isset($refund['result']))
+            return true;
+
+        return false;
+        }
+
     private function _prepareRequest ($config)
         {
         $cart = new Cart((int)$this->context->cart->id);
         $cart_details = $cart->getSummaryDetails(null, true);
-        
+
         $billing_address = new Address($this->context->cart->id_address_invoice);
         $billing_address->country = new Country($billing_address->id_country);
         $billing_address->state	= new State($billing_address->id_state);
         $currency = $this->context->currency;
         $customer = $this->context->customer;
         $lang = $this->context->language;
-        
+
         $requestdata = array('REQUEST.VERSION'      =>  '1.0',
                             'SECURITY.SENDER'       =>  $config['sender'],
                             'SECURITY.TOKEN'        =>  isset($config['token']) ? $config['token'] : '',
@@ -778,7 +978,7 @@ class SkrillPsp extends PaymentModule
                             'NAME.COMPANY'          =>  $customer->company,
                             'NAME.GIVEN'            =>  $billing_address->firstname,
                             'NAME.FAMILY'           =>  $billing_address->lastname,
-                
+
                             'CONTACT.EMAIL'         =>  $customer->email,
                             'CONTACT.MOBILE'        =>  $billing_address->phone_mobile,
                             'CONTACT.PHONE'         =>  $billing_address->phone,
@@ -790,7 +990,7 @@ class SkrillPsp extends PaymentModule
                             'ADDRESS.ZIP'           =>  $billing_address->postcode,
                             'ACCOUNT.REGISTRATION'  =>  $this->context->cookie->SkrillPSPUniqueID ? $this->context->cookie->SkrillPSPUniqueID : '',
                             'ACCOUNT.ID'            =>  $customer->email,
-            
+
                             'FRONTEND.ENABLED'      =>  'false',
                             'FRONTEND.POPUP'        =>  'false',
                             'FRONTEND.MODE'         =>  'DEFAULT',
@@ -808,7 +1008,7 @@ class SkrillPsp extends PaymentModule
                             'FRONTEND.COLLECT_DATA' =>  'true',
                             'CRITERION.MONEYBOOKERS_recipient_description'
                                                     => Configuration::get('PS_SHOP_NAME'));
-        
+
         return $requestdata;
         }
 
@@ -817,7 +1017,7 @@ class SkrillPsp extends PaymentModule
         try {
             if (!is_callable('curl_init'))
                 return -1;
-            
+
             $curl = curl_init();
             curl_setopt($curl, CURLOPT_URL, $secure_url);
             curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
@@ -826,35 +1026,29 @@ class SkrillPsp extends PaymentModule
             curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($request));
             curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 10);
             curl_setopt($curl, CURLOPT_TIMEOUT, 30);
-            
+
             $content = curl_exec($curl);
             $response = array();
             foreach (explode('&', $content) as $param_pair)
                 {
                 $param_pair = split("=", $param_pair);
-                $response[$param_pair[0]] = urldecode($param_pair[1]);    
+                $response[$param_pair[0]] = urldecode($param_pair[1]);
                 }
-            
-            //$logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/datadump.log', "a+");
-            //fprintf($logh, "%s\n\n", var_export($secure_url, true));
-            //fprintf($logh, "%s\n\n\n", var_export($request, true));
-            //fprintf($logh, "%s\n\n\n", var_export($response, true));
-            //fclose($logh);
-            
+
             return $response;
             }
         catch (Exception $e)
             {
-            
+
             }
         }
-    
+
     private function _execXMLRequest ($xml, $secure_url)
         {
         try {
             if (!is_callable('curl_init'))
                 return -1;
-            
+
             $data = array('load' => $xml);
             $curl = curl_init();
             curl_setopt($curl, CURLOPT_URL, $secure_url);
@@ -864,19 +1058,14 @@ class SkrillPsp extends PaymentModule
             curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query($data));
             curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 10);
             curl_setopt($curl, CURLOPT_TIMEOUT, 30);
-            
+
             $content = curl_exec($curl);
-            
-            //$logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/datadump.log', "a+");
-            //fprintf($logh, "%s\n\n\n", var_export($xml, true));
-           // fprintf($logh, "%s\n\n\n", var_export($content, true));
-            //fclose($logh);
-            
+
             return $content;
             }
         catch (Exception $e)
             {
-            
+
             }
         }
 
@@ -897,7 +1086,8 @@ class SkrillPsp extends PaymentModule
                 $nodename == 'RETURN' ||
                 $nodename == 'REFERENCEID')
                 {
-                $result[preg_replace('/ /', '_', $nodename)] = $nodes[$nodepos[0]]['value'];
+                if (isset($nodes[$nodepos[0]]['value']))
+                    $result[preg_replace('/ /', '_', $nodename)] = $nodes[$nodepos[0]]['value'];
                 }
             elseif ($nodename == 'PAYMENT' ||
                     $nodename == 'PROCESSING')
@@ -909,7 +1099,7 @@ class SkrillPsp extends PaymentModule
 
         return $result;
         }
-    
+
      private function _process3DSResponse ($response)
         {
         $xml_parser = xml_parser_create();
@@ -962,10 +1152,10 @@ class SkrillPsp extends PaymentModule
                               "sender" => "Sender",
                               "login" => "Login",
                               "password" => "Password");
-        
+
         if (!Tools::getValue('skrillbuttonconfirm'))
             return;
-    
+
         $this->context->smarty->assign('isConfigFail', false);
         if (!$this->_validateConfiguration())
             {
@@ -977,10 +1167,10 @@ class SkrillPsp extends PaymentModule
                 foreach ($this->_configErrors['mandatoryfields'] as $field)
                     array_push($errorMsgs, $this->l('The field <strong>' . $fieldslabels[$field] .
                             '</strong> is mandatory. Please fill in the required data.'));
-                    
+
                 $this->context->smarty->assign(array('errorMsgs'        => $errorMsgs,
                                                      'isConfigFail'     => true,
-                                                     'errorfield'       => $this->_configErrors['mandatoryfields'])); 
+                                                     'errorfield'       => $this->_configErrors['mandatoryfields']));
                 }
             }
 
@@ -990,13 +1180,15 @@ class SkrillPsp extends PaymentModule
         Configuration::updateValue('SKRILLPSP_LOGIN', Tools::getValue('login'));
         Configuration::updateValue('SKRILLPSP_PASSWORD', Tools::getValue('password'));
         Configuration::updateValue('SKRILLPSP_TRANSACTION_MODE', Tools::getValue('transactionmode'));
-        
+        Configuration::updateValue('SKRILLPSP_AUTOMATIC_REFUND', Tools::getValue('automaticrefund'));
+        Configuration::updateValue('SKRILLPSP_DEBUG', Tools::getValue('debugmode'));
+
         if ($this->_configErrors['status'] == 1)
             {
             foreach (Currency::getCurrencies() as $currency)
                 {
                 $currency_iso_code = $currency['iso_code'];
-            
+
                 if ($this->_configErrors['currencies'][$currency_iso_code])
                     {
                     Configuration::updateValue('SKRILLPSP_TESTMODE_' . $currency_iso_code,
@@ -1012,7 +1204,7 @@ class SkrillPsp extends PaymentModule
                     }
                 }
             }
-        
+
         foreach (self::$payments as $pmethod => $plabel)
             {
             $pmethodname = 'SKRILLPSP_PMETHOD_' . strtoupper($pmethod);
@@ -1024,11 +1216,11 @@ class SkrillPsp extends PaymentModule
 
         return;
 	}
-        
+
     private function _validateConfiguration ()
         {
         $fields = array("channel", "sender", "login", "password", "testmode");
-        
+
         $this->_configErrors = array();
         $this->_configErrors['mandatoryfields'] = array();
         $this->_configErrors['status'] = 0;
@@ -1043,28 +1235,28 @@ class SkrillPsp extends PaymentModule
                                $iname);
                     }
                 }
-            
+
             if ($this->_configErrors['status']) // Mandatory field is empty !!!
                 return false;
-            
+
             $this->_configErrors['currencies'] = array();
             foreach (Currency::getCurrencies() as $currency)
                 {
                 $this->_configErrors['status'] = 1;
-                
+
                 $currency_iso_code = $currency['iso_code'];
-            
+
                 if (Tools::getvalue('channel_' . $currency_iso_code) ||
                     Tools::getvalue('sender_' . $currency_iso_code) ||
                     Tools::getvalue('login_' . $currency_iso_code) ||
                     Tools::getvalue('password_' . $currency_iso_code))
-                    $this->_configErrors['currencies'][$currency_iso_code] = 1; 
+                    $this->_configErrors['currencies'][$currency_iso_code] = 1;
                 }
             }
 
         return true;
         }
-        
+
     }
 
 ?>

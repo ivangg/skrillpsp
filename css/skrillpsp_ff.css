@@ -1,0 +1,13 @@
+@-moz-document url-prefix() {
+.skrillformfield #transactionmode, #skrillmain .skrillnumericselect {
+    margin: -5px -5px 0 8px;
+}
+}
+
+@-moz-document url-prefix() {
+#skrillmain input[type="radio"], 
+#skrillmain input[type="checkbox"], 
+#skrillmain select {
+    margin-top: 10px;
+}
+}

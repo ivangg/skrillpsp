@@ -55,6 +55,20 @@
                             <input type="radio" class="testmode" name="testmode" id="testmode_yes" value="1" {if $testmode == 1}checked{/if} /><label class="skrillradio" for="testmode_yes">Yes</label>
                         </span>
                     </div>
+                    <div class="skrillformfield">
+                        <label class="skrillquestion">Activate automatic refund on order cancellation?</label>
+                        <span class="skrillyesno">
+                            <input type="radio" class="testmode" name="automaticrefund" id="automaticrefund_no" value="0" {if $automaticrefund == 0}checked{/if} /><label class="skrillradio" for="automaticrefund_no">No</label>
+                            <input type="radio" class="testmode" name="automaticrefund" id="automaticrefund_yes" value="1" {if $automaticrefund == 1}checked{/if} /><label class="skrillradio" for="automaticrefund_yes">Yes</label>
+                        </span>
+                    </div>
+                    <div class="skrillformfield">
+                        <label class="skrillquestion">Debug mode</label>
+                        <span class="skrillyesno">
+                            <input type="radio" class="testmode" name="debugmode" id="debugmode_no" value="0" {if $debugmode == 0}checked{/if} /><label class="skrillradio" for="debugmode_no">No</label>
+                            <input type="radio" class="testmode" name="debugmode" id="debugmode_yes" value="1" {if $debugmode == 1}checked{/if} /><label class="skrillradio" for="debugmode_yes">Yes</label>
+                        </span>
+                    </div>
                 </div>
             
                 <div id="skrillcurrencychannels">

@@ -73,8 +73,8 @@
 }
 
 #skrillmain .skrillpmethod {
-    width: 180px;
-    margin-left: 60px;
+    width: 210px;
+    margin-left: 40px;
     margin-right: 10px;
     float: left;
     text-align: center;
@@ -157,15 +157,6 @@
     pointer-events:none;
     display:block;
 }
-/*
-.skrillformfield #transactionmode {
-    cursor: pointer;
-    -webkit-appearance: none;
-    padding: 0.5em 1em 0.5em 0.75em;
-    font-size: 15px;
-    background: rgba(255,255,255,0.1) url("../images/select.png") right center;
-    background-repeat:no-repeat;
-}*/
 
 select::selection {
     color: white;
@@ -198,12 +189,12 @@ select::-webkit-selection {
     text-align: -webkit-auto;
 }
 
- #skrillmain input[type="password"],
- #skrillmain input[type="text"],
- #skrillmainv textarea[type="text"],
- #skrillmain input[type="radio"],
- #skrillmain input[type="checkbox"],
- #skrillmain select {
+#skrillmain input[type="password"],
+#skrillmain input[type="text"],
+#skrillmain textarea[type="text"],
+#skrillmain input[type="radio"],
+#skrillmain input[type="checkbox"],
+#skrillmain select {
     font-family: "Helvetica Neue", Helvetica, sans-serif;
     font-size: 18px;
     color: #444;
@@ -212,19 +203,6 @@ select::-webkit-selection {
     border-radius: 5px;
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
-
-/*
-#skrillmain .skrillnumericselect {
-    width: 80px;
-    cursor: pointer;
-    -webkit-appearance: none;
-    padding: 0.25em 0em 0.25em 0.75em;
-    font-size: 15px;
-    background: rgba(255,255,255,0.1) url("../images/select.png") right center;
-    background-repeat:no-repeat;
-    margin: -2px 100px 5px 0px;
-}
-*/
 
 #skrillmain .skrillcountries {
     width: auto;
@@ -324,7 +302,7 @@ select::-webkit-selection {
 }
 
 #skrillconfigchannel {
-    height: 210px;    
+    height: 275px;    
 }
 
 #skrillcurrencychannels {
@@ -426,23 +404,10 @@ button.skrillbuttonconfirm.notransitions {
     margin-left: 8px;
 }
 
- #skrillmain input.error {
+#skrillmain input.error {
     border: 1px solid #DD212B;
     box-shadow: 0 0 5px #ED1B24;
 }
-
-/*#skrillerrors {
-    color: #D63301;
-    border: 1px solid #721212;
-    background-color: #FFCCBA;
-    width: 410px;
-    margin-bottom: 10px;
-    
-    -moz-border-radius:5px;
-    -webkit-border-radius:5px;
-    -o-border-radius:5px;
-    border-radius:5px;
-}*/
 
 .skrillerrormessage:before {
     content: 'X ';
