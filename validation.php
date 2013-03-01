@@ -5,10 +5,6 @@ include(dirname(__FILE__) . '/skrillpsp.php');
 
 $skrillpsp = new SkrillPsp();
 
-$logh = fopen(_PS_MODULE_DIR_ . '/skrillpsp/status.log', "a+");
-fprintf($logh, "%s\n\n\n", var_export($_POST, true));
-fclose($logh);
-
 if (isset($_POST['IDENTIFICATION_TRANSACTIONID']))
     $cart_ids = split("_", $_POST['IDENTIFICATION_TRANSACTIONID']);
 

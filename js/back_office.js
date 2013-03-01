@@ -14,7 +14,7 @@ jQuery(document).ready( function() {
             if (jQuery(this).text().match(/hide/i))
                 {
                 jQuery('#skrillchannelconfig_' + matches[1]).hide();
-                jQuery('#skrillchannelconfigdiv_' + matches[1]).css('height','20px');
+                jQuery('#skrillchannelconfigdiv_' + matches[1]).css('height','30px');
                 jQuery(this).text('Show Channel/Currency Configuration');
                 }
             else

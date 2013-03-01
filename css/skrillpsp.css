@@ -48,7 +48,7 @@
 #skrillmain .skrillhideshow {
     width: 230px;
     float: right;
-    vertical-align:text-top;    
+    vertical-align: middle;    
 }
 
 #skrillmain .skrillfiltercountry {
@@ -252,7 +252,6 @@ select::-webkit-selection {
 
 #skrillmain .skrillradio {
     width: auto;
-    margin-top: 5px;
     vertical-align: bottom;
     margin-left: 10px;
 }

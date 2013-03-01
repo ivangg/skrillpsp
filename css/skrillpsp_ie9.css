@@ -19,7 +19,7 @@
 }
 
 #skrillmain .skrillpmethod {
-    width: 200px;
+    width: 220px;
     text-align: center;
     margin-right: 10px;
     margin-left: 60px;
@@ -27,7 +27,7 @@
 }
 
 .ms-container .ms-selectable {
-    margin-left: -150px;
+    /*margin-left: -190px;*/
 }
 
 .skrillformfield #transactionmode,
@@ -60,4 +60,72 @@
 
 .transactionmodewrapper:before {
 
+}
+
+#skrillconfigchannel {
+    height: 300px; 
+}
+
+#skrillmain .testmode {
+    background-color: transparent;
+    border: none;
+    display: inline-block;
+    position: relative;
+    width: auto;
+    margin: 10px 0px 0px 7px !important;
+    vertical-align: middle;
+    color: #431032;
+    padding: 0px;
+    border-radius: none;
+}
+
+#skrillmain .testmode:checked:after {
+}
+ 
+#skrillmain .testmode:checked {
+    border: none;
+}
+ 
+#skrillmain .testmode:active, #skrillmain .testmode:checked:active {
+}
+
+#skrillmain .skrillcheckbox {
+    border: none;
+    background-color: transparent;
+    border-radius: none;
+    padding: 0px;
+    margin: 10px 0px 0px 0px !important;
+}
+
+#skrillmain .skrillcheckbox:active, #skrillmain .skrillcheckbox:checked:active {
+    border: none;
+    background-color: transparent;
+}
+
+#skrillmain .skrillcheckbox:checked {
+    border: none;
+    background-color: transparent;
+}
+
+#skrillmain #skrillchannelconfig .skrillquestion {
+    margin-top: 0px;
+}
+
+#skrillmain #skrillconfigchannel .skrillquestion {
+    margin-top: 15px;
+}
+
+#skrillmain #skrillcurrencychannels .skrillquestion {
+    margin-top: 0px;
+}
+
+#skrillmain input[type="radio"],
+#skrillmain input[type="checkbox"] {
+    border: none;
+}
+
+#skrillmain .skrillradio {
+    width: auto;
+    vertical-align: middle;
+    margin-left: 10px;
 }
