@@ -19,7 +19,7 @@ html, body { background: none; }
     height: auto;
 }
 
-#frontendForm input, #frontendForm select {
+/*#frontendForm input, #frontendForm select {
     margin: 0em;
     font: -webkit-small-control;
     color: initial;
@@ -30,23 +30,33 @@ html, body { background: none; }
     text-shadow: none;
     display: inline-block;
     text-align: -webkit-auto;
-}
+}*/
 
- #frontendForm input[type="password"],
- #frontendForm input[type="text"],
- #frontendForm textarea[type="text"],
- #frontendForm input[type="radio"],
- #frontendForm input[type="checkbox"],
  #frontendForm select {
     font-family: "Helvetica Neue", Helvetica, sans-serif;
-    height: 26px !important;
+    height: 28px !important;
     font-size: 15px;
     color: #444;
     margin-top: 2px;
     border: 1px solid #431032;
     border-radius: 5px;
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
-    padding: 2px;
+    padding: 2px; 
+ }
+ 
+ #frontendForm input[type="password"],
+ #frontendForm input[type="text"],
+ #frontendForm textarea[type="text"],
+ #frontendForm input[type="radio"],
+ #frontendForm input[type="checkbox"] {
+    font-family: "Helvetica Neue", Helvetica, sans-serif;
+    height: 24px !important;
+    font-size: 15px;
+    color: #444;
+    border: 1px solid #431032;
+    border-radius: 5px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+    padding-right: 2px;
 }
 
 #buttonarea #cancel {

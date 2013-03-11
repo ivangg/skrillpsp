@@ -1,5 +1,6 @@
 jQuery(document).ready( function() {
     jQuery('#skrillcurrencychannels').hide();
+    jQuery('#skrillpaymentmethods').hide();
     
     jQuery.each(jQuery('.skrilldelchannel'), function (key, value) {
         jQuery(this).unbind("click");

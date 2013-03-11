@@ -1,4 +1,43 @@
-<div id="skrillmain">
+<style>
+.skrillspinner {
+    position: fixed;
+    left: 30%;
+    top: 200px;
+    margin-left: -32px; /* -1 * image width / 2 */
+    margin-top: -32px;  /* -1 * image height / 2 */
+    z-index: 99999999;
+}
+</style>
+<div id="skrillmainspinner"></div>
+<script>
+var opts = {
+    lines: 15, // The number of lines to draw
+    length: 15, // The length of each line
+    width: 5, // The line thickness
+    radius: 15, // The radius of the inner circle
+    corners: 1, // Corner roundness (0..1)
+    rotate: 0, // The rotation offset
+    color: '#431032', // #rgb or #rrggbb
+    speed: 1, // Rounds per second
+    trail: 100, // Afterglow percentage
+    shadow: false, // Whether to render a shadow
+    hwaccel: true, // Whether to use hardware acceleration
+    className: 'skrillspinner', // The CSS class to assign to the spinner
+    zIndex: 2e9, // The z-index (defaults to 2000000000)
+    top: '300', // Top position relative to parent in px
+    left: '200' // Left position relative to parent in px;
+} 
+
+var spinner = new Spinner(opts).spin();
+$("#skrillmainspinner").append(spinner.el);
+
+jQuery(document).ready(function () {
+    spinner.stop();
+});
+
+</script>
+
+<div id="skrillmain" style="visibility: hidden">
     <div id="skrilllogo"></div>
     <div id="skrillabout">
         Skrill is one of the world's largest online payment providers currently used by 30 million customers and 135,000 merchants.
@@ -6,20 +45,19 @@
         With a single integration you can instantly enter new markets and grow your business.
     </div>
     <div id="skrillbenefits"></div>
-    {if $isConfigFail}
+    {if isset($isConfigFail) && true === $isConfigFail}
     <div id="skrillerrors">
         {foreach from=$errorMsgs item=error}
             <div class="skrillerrormessage">{$error}</div>
         {/foreach}
     </div>
     {/if}
-    
     <div id="skrillconfig">
         <form id="skrillconfigform" name="" action="{$smarty.server.REQUEST_URI|escape:'htmlall'}" method="POST">
             <div id="tabs-nobg">
                 <ul>
                     <li><a href="#skrillconfigchannel"><span>Channel configuration</span></a></li>
-                    <li><a href="#skrillcurrencychannels"><span>Configure additional currencies</span></a></li>
+                    <li><a href="#skrillcurrencychannels"><span>Configure additional channels</span></a></li>
                     <li><a href="#skrillpaymentmethods"><span>Payment options</span></a></li>
                 </ul>
                 <div id="skrillconfigchannel">
@@ -155,8 +193,17 @@
         </form>
     </div>
 </div>
-
-
 <script>
-    jQuery("#tabs-nobg").tabs();
+    var $tabs = jQuery("#tabs-nobg").tabs();
+
+    jQuery(document).ready(function () {
+        jQuery('#skrillmain').css('visibility', 'visible');
+        {if isset($errorStatus) && $errorStatus == -2}
+            $tabs.tabs("option", "active", 1);
+        {elseif isset($errorStatus) && $errorStatus == -3}
+            $tabs.tabs("option", "active", 2);
+        {else}
+            $tabs.tabs("option", "active", 0);
+        {/if}
+    });
 </script>

@@ -19,3 +19,4 @@
 <![endif]-->
 <link rel="stylesheet" type="text/css" media="screen" href="{$skrillmodule}/css/skrillpsp_ff.css" />
 <script src="{$skrillmodule}/js/back_office.js" type="text/javascript"></script>
+<script src="{$skrillmodule}/js/spin.min.js" type="text/javascript"></script>
