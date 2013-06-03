@@ -66,6 +66,7 @@ class SkrillPsp extends PaymentModule
 	$this->tab              = 'payments_gateways';
 	$this->version          = '1.0';
 	$this->author           = 'Skrill Holdings Ltd.';
+	$this->_module_key	= '637dcf390f052c3a8ebcaed4269fc2bf';
 	$this->need_instance    = 1;
         $this->is_configurable  = 1;
 
@@ -131,7 +132,7 @@ class SkrillPsp extends PaymentModule
             }
 
         $foreign_key = 'FOREIGN KEY (`order_id`) REFERENCES `' .
-                        _DB_PREFIX_ . 'orders`(`order_id`) ON DELETE CASCADE';
+                        _DB_PREFIX_ . 'orders`(`id_order`) ON DELETE CASCADE';
         
         if (!Db::getInstance()->Execute('CREATE TABLE IF NOT EXISTS `' . _DB_PREFIX_ . 'skrillpsp_trns` (
                                         `order_id`  int(10) unsigned NOT NULL,
